@@ -421,7 +421,8 @@ def get_session_cookie(pass_token: str, user_id: str) -> Optional[str]:
         "%252Fmp%252Fapi%252Flogin%253Ffrom%253Dmipay_indexicon_TVcard%2526deepLinkEnable%253Dfalse"
         "%2526requestUrl%253Dhttps%25253A%25252F%25252Fm.jr.airstarfinance.net%25252Fmp%25252Factivity"
         "%25252FvideoActivity%25253Ffrom%25253Dmipay_indexicon_TVcard%252526_noDarkMode%25253Dtrue"
-        "%252526_transparentNaviBar%25253Dtrue%252526_statusBarHeight%25253D137&sid=jrairstar&_group=DEFAULT&_snsNone=true&_loginType=ticket"
+        "%252526_transparentNaviBar%25253Dtrue%252526cUserId%25253Dusyxgr5xjumiQLUoAKTOgvi858Q"
+        "%252526_statusBarHeight%25253D137&sid=jrairstar&_group=DEFAULT&_snsNone=true&_loginType=ticket"
     )
     session = requests.Session()
     try:
@@ -515,8 +516,8 @@ def main() -> int:
     print(f"======= 小米钱包每日任务 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} =======")
 
     accounts = load_qinglong_cookie_accounts()
-    if not accounts and migrate_legacy_accounts_if_needed(accounts):
-        # 仅在确实迁移了旧账号后才重新加载，避免重复的青龙 API 往返。
+    if not accounts:
+        migrate_legacy_accounts_if_needed()
         accounts = load_qinglong_cookie_accounts()
 
     if not accounts:

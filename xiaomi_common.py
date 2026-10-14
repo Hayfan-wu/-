@@ -319,12 +319,8 @@ def _cookie_env_index(name: str) -> Optional[int]:
     match = re.fullmatch(re.escape(COOKIE_ENV_PREFIX) + r"(\d+)", name)
     if not match:
         return None
-    digits = match.group(1)
-    number = int(digits)
-    # 仅接受规范命名：ck0、ck01（前导零）等一律忽略，避免序号冲突。
-    if number <= 0 or digits != str(number):
-        return None
-    return number
+    number = int(match.group(1))
+    return number if number > 0 else None
 
 
 def _all_cookie_env_items() -> List[Dict[str, Any]]:
@@ -390,26 +386,17 @@ def save_qinglong_cookie_account(account_data: Dict[str, Any]) -> Tuple[str, boo
         if (index := _cookie_env_index(str(item.get("name", "")))) is not None
     }
 
-    disabled_match = ""
     for item in items:
-        parsed = _parse_cookie_string(str(item.get("value", "")))
-        if parsed.get("userId") != user_id:
-            continue
         if int(item.get("status", 0) or 0) == 1:
-            disabled_match = str(item.get("name", ""))
             continue
-        name = str(item.get("name", ""))
-        index = _cookie_env_index(name) or 1
-        value = _cookie_value(account_data)
-        ql_update_env(item, value, f"小米钱包账号{index}")
-        os.environ[name] = value
-        return name, False
-
-    if disabled_match:
-        print(
-            f"⚠️ {disabled_match} 与本次扫码为同一小米账号但已被禁用，本次将新建 ck；"
-            "如需复用请先在青龙中启用该变量。"
-        )
+        parsed = _parse_cookie_string(str(item.get("value", "")))
+        if parsed.get("userId") == user_id:
+            name = str(item.get("name", ""))
+            index = _cookie_env_index(name) or 1
+            value = _cookie_value(account_data)
+            ql_update_env(item, value, f"小米钱包账号{index}")
+            os.environ[name] = value
+            return name, False
 
     index = 1
     while index in used_indexes:
@@ -454,17 +441,8 @@ def load_accounts() -> List[Dict[str, Any]]:
         return []
 
 
-def migrate_legacy_accounts_if_needed(
-    accounts_loaded: Optional[List[Dict[str, Any]]] = None,
-) -> int:
-    """把旧版 xiaomiconfig.json 迁移为 ck 环境变量。
-
-    调用方已加载过账号列表时通过 accounts_loaded 传入，
-    避免重复请求青龙 API。
-    """
-    if accounts_loaded is None:
-        accounts_loaded = load_qinglong_cookie_accounts()
-    if accounts_loaded:
+def migrate_legacy_accounts_if_needed() -> int:
+    if load_qinglong_cookie_accounts():
         return 0
     legacy = load_accounts()
     migrated = 0
