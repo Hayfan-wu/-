@@ -414,16 +414,39 @@ class XiaomiWalletTask:
         return True
 
 
+# 登录入口：先请求它获取带「新鲜 sign」的 serviceLogin 链接。
+# 旧版把 sign 硬编码在 URL 里，小米轮换后 sts 会固定返回 401。
+LOGIN_ENTRY_URL = (
+    "https://m.jr.airstarfinance.net/mp/api/login?from=mipay_indexicon_TVcard"
+    "&deepLinkEnable=false&requestUrl=https%3A%2F%2Fm.jr.airstarfinance.net%2Fmp%2Factivity"
+    "%2FvideoActivity%3Ffrom%3Dmipay_indexicon_TVcard%26_noDarkMode%3Dtrue"
+    "%26_transparentNaviBar%3Dtrue%26_statusBarHeight%3D137"
+)
+
+
+def _fresh_service_login_url(session: requests.Session) -> Optional[str]:
+    """从登录入口 302 出带新鲜 sign 的 serviceLogin 链接，避免硬编码 sign 过期。"""
+    try:
+        resp = session.get(
+            LOGIN_ENTRY_URL,
+            headers={"User-Agent": USER_AGENT_DESKTOP},
+            timeout=20,
+            allow_redirects=False,
+        )
+        location = resp.headers.get("Location", "")
+        if resp.status_code in (301, 302) and "serviceLogin" in location:
+            return location
+        print(f"  ⚠️ 登录入口未跳转 serviceLogin（HTTP {resp.status_code}），登录链路可能已变化。")
+    except requests.RequestException as exc:
+        print(f"  ⚠️ 获取登录入口跳转失败: {exc}")
+    return None
+
+
 def get_session_cookie(pass_token: str, user_id: str) -> Optional[str]:
-    login_url = (
-        "https://account.xiaomi.com/pass/serviceLogin?callback=https%3A%2F%2Fapi.jr.airstarfinance.net%2Fsts"
-        "%3Fsign%3D1dbHuyAmee0NAZ2xsRw5vhdVQQ8%253D%26followup%3Dhttps%253A%252F%252Fm.jr.airstarfinance.net"
-        "%252Fmp%252Fapi%252Flogin%253Ffrom%253Dmipay_indexicon_TVcard%2526deepLinkEnable%253Dfalse"
-        "%2526requestUrl%253Dhttps%25253A%25252F%25252Fm.jr.airstarfinance.net%25252Fmp%25252Factivity"
-        "%25252FvideoActivity%25253Ffrom%25253Dmipay_indexicon_TVcard%252526_noDarkMode%25253Dtrue"
-        "%252526_transparentNaviBar%25253Dtrue%252526_statusBarHeight%25253D137&sid=jrairstar&_group=DEFAULT&_snsNone=true&_loginType=ticket"
-    )
     session = requests.Session()
+    login_url = _fresh_service_login_url(session)
+    if not login_url:
+        return None
     try:
         response = session.get(
             login_url,
